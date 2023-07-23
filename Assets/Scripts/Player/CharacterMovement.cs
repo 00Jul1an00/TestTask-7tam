@@ -1,8 +1,9 @@
 using UnityEngine;
 using System;
+using Unity.Netcode;
 
 [RequireComponent(typeof(Rigidbody2D))]
-public class CharacterMovement : MonoBehaviour
+public class CharacterMovement : NetworkBehaviour
 {
     [SerializeField] private Joystick _joystick;
     [SerializeField] private float _speed;
@@ -14,8 +15,12 @@ public class CharacterMovement : MonoBehaviour
 
     private void Start()
     {
+        if (!IsOwner)
+            return;
+
         _screenBounds = Camera.main.ScreenToWorldPoint(new Vector2(Screen.width, Screen.height));
         _rb = GetComponent<Rigidbody2D>();
+        _joystick = FindObjectOfType<Joystick>();
 
         if (_joystick == null)
             throw new NullReferenceException();
@@ -23,6 +28,9 @@ public class CharacterMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (!IsOwner)
+            return;
+
         CheckScreenBounds();
 
         if (_xScreenBoundReached && _yScreenBoundReached)

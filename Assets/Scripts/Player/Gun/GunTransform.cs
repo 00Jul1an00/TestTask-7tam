@@ -1,7 +1,8 @@
 using UnityEngine;
+using Unity.Netcode;
 
 [RequireComponent(typeof(Gun))]
-public class GunTransform : MonoBehaviour
+public class GunTransform : NetworkBehaviour
 {
     [SerializeField] private Joystick _joystick;
 
@@ -11,11 +12,18 @@ public class GunTransform : MonoBehaviour
 
     private void Start()
     {
+        if (!IsOwner)
+            return;
+
         _gunSprite = GetComponent<SpriteRenderer>();
+        _joystick = FindObjectOfType<Joystick>();
     }
 
     private void Update()
     {
+        if (!IsOwner)
+            return;
+
         if (_joystick.Position != Vector2.zero)
         {
             Vector2 newPosition = new Vector2(_joystick.Position.x, _joystick.Position.y) * VECTOR_CLAMPER;

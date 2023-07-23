@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Unity.Services.Lobbies.Models;
 
 public enum PlayerName
 {
@@ -17,16 +18,17 @@ public class LobbyPlayerUI : MonoBehaviour
 
     private string _playerName;
 
-    private void Start()
+    public void Init(Player player)
     {
         int playersInLobby = LobbyManager.Instance.CurrentLobby.Players.Count;
         int maxPlayers = LobbyManager.Instance.CurrentLobby.MaxPlayers;
         int result = maxPlayers - playersInLobby;
+        _readyCheckMarkImage.gameObject.SetActive(false);
 
-        if (LobbyManager.Instance.IsPlayerHost())
+        if (LobbyManager.Instance.IsPlayerHost(player))
         {
-            _playerName = PlayerName.White.ToString();            
-            _readyCheckMarkImage = null;
+            _playerName = PlayerName.White.ToString();
+            Destroy(_readyCheckMarkImage);
         }
         else
         {
@@ -39,6 +41,7 @@ public class LobbyPlayerUI : MonoBehaviour
 
     public void ChangeReadinessStatus(bool isReady)
     {
-        _readyCheckMarkImage.gameObject.SetActive(isReady);
+        if (!LobbyManager.Instance.IsPlayerHost())
+            _readyCheckMarkImage.gameObject.SetActive(isReady);
     }
 }

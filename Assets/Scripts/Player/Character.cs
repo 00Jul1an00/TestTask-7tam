@@ -1,14 +1,12 @@
 using UnityEngine;
 using System;
 
-[RequireComponent(typeof(CharacterMovement))]
 public class Character : MonoBehaviour
 {
-    [SerializeField] private string _name;
-    [SerializeField] private Gun _gun;
     [SerializeField] private int _health;
+    [SerializeField] private SpriteRenderer _playerSprite;
 
-    private CharacterMovement _playerMovement;
+    private string _name;
     private int _coins;
 
     public string Name => _name;
@@ -17,15 +15,8 @@ public class Character : MonoBehaviour
 
     public event Action CoinsChanged;
     public event Action HealthChanged;
+    public event Action<Character> Die;
 
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Space))
-            _gun.Fire();
-
-        if (Input.GetKeyDown(KeyCode.Alpha0))
-            TakeDamage(10);
-    }
     public void TakeDamage(int damage)
     {
         if (damage > 0)
@@ -34,11 +25,27 @@ public class Character : MonoBehaviour
             HealthChanged?.Invoke();
         }
 
+        if (_health <= 0)
+        {
+            Die?.Invoke(this);
+            Destroy(gameObject);
+        }
+
     }
 
     public void AddCoin()
     {
         _coins++;
         CoinsChanged.Invoke();
+    }
+
+    public void ChangeName(string name)
+    {
+        _name = name;
+    }
+
+    public void ChangeColor(Color color)
+    {
+        _playerSprite.color = color;
     }
 }

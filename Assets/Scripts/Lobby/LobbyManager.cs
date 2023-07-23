@@ -6,6 +6,7 @@ using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using System.Threading.Tasks;
 using System;
+using Unity.Netcode;
 
 public class LobbyManager : MonoBehaviour
 {
@@ -28,6 +29,7 @@ public class LobbyManager : MonoBehaviour
     public event Action PlayerJoinedLobby;
     public event Action PlayerLeftLobby;
     public event Action LobbyUpdated;
+    public event Action<string> ErrorTriggered;
 
     private async void Awake()
     {
@@ -37,10 +39,11 @@ public class LobbyManager : MonoBehaviour
             transform.parent = null;
             _lobbyUpdatingCurrentTime = _lobbyUpdatingDelay;
             _lobbyHeartbeatCurrentTime = _lobbyHeartbeatDelay;
+            DontDestroyOnLoad(this);
         }
         else
         {
-            Destroy(this);
+            Destroy(gameObject);
         }
 
         await PlayerAunthetication();
@@ -76,13 +79,14 @@ public class LobbyManager : MonoBehaviour
 
             if (response.Results.Count != 0)
             {
-                print("lobby with name " + lobbyName + " already exist");
+                ErrorTriggered?.Invoke("lobby with name " + lobbyName + " already exist");
                 return;
             }
             
             Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(lobbyName, _maxPlayers, new() { Player = _player });
             _currentLobby = lobby;
-            UpdateLobbyImmediately();
+            //NetworkManager.Singleton.StartHost();
+            //UpdateLobbyImmediately();
 
         }
         catch(LobbyServiceException e)
@@ -95,19 +99,21 @@ public class LobbyManager : MonoBehaviour
     {
         try
         {
+            _player = InitPlayer();
             QueryResponse response = await Lobbies.Instance.QueryLobbiesAsync();
             var result = response.Results.Find(lobby => lobby.Name == lobbyName);
 
             if(result == null || result.AvailableSlots == 0)
             {
-                print("lobby does not exist or lobby is full");
+                ErrorTriggered?.Invoke("lobby with name " + lobbyName + " does not exist or full");
                 return;
             }
 
             Lobby lobby = await Lobbies.Instance.JoinLobbyByIdAsync(result.Id, new() { Player = _player });
             _currentLobby = lobby;
             PlayerJoinedLobby?.Invoke();
-            UpdateLobbyImmediately();
+            //UpdateLobbyImmediately();
+            //NetworkManager.Singleton.StartClient();
         }
         catch(LobbyServiceException e)
         {
@@ -138,7 +144,7 @@ public class LobbyManager : MonoBehaviour
 
             await LobbyService.Instance.RemovePlayerAsync(_currentLobby.Id, _player.Id);
             PlayerLeftLobby?.Invoke();
-            UpdateLobbyImmediately();
+            //UpdateLobbyImmediately();
             SetPlayerReadiness(false);
             _currentLobby = null;
         }
@@ -201,7 +207,7 @@ public class LobbyManager : MonoBehaviour
         }
     }
 
-    public void SetPlayerReadiness(bool isReady)
+    public async void SetPlayerReadiness(bool isReady)
     {
         if (_currentLobby == null)
             return;
@@ -209,14 +215,13 @@ public class LobbyManager : MonoBehaviour
         if (IsPlayerHost())
             return;
 
-        _player.Data[READINESS_INFO] = new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, isReady.ToString());
-        UpdateLobbyImmediately();
+        await UpdatePlayerData(READINESS_INFO, isReady.ToString());
     }
 
     private Player InitPlayer()
     {
         return new Player(AuthenticationService.Instance.PlayerId, null, new Dictionary<string, PlayerDataObject> {
-            { READINESS_INFO, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, "false") },
+            { READINESS_INFO, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, "False") },
             { PLAYER_NAME, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, string.Empty) } 
         });
     }
@@ -224,6 +229,11 @@ public class LobbyManager : MonoBehaviour
     public bool IsPlayerHost()
     {
         return _currentLobby != null && _player.Id == _currentLobby.HostId;
+    }
+    
+    public bool IsPlayerHost(Player player)
+    {
+        return _currentLobby != null && player.Id == _currentLobby.HostId;
     }
 
     public bool IsAllPlayerAreReady()
@@ -236,15 +246,36 @@ public class LobbyManager : MonoBehaviour
             if (player.Id == _currentLobby.HostId)
                 continue;
 
-            if (player.Data[READINESS_INFO].Value == "false")
+            if (player.Data[READINESS_INFO].Value == "False")
                 return false;
         }
 
         return true;
     }
 
-    public void ChangePlayerName(string name)
+    public async void ChangePlayerName(string name)
     {
-        _player.Data[PLAYER_NAME].Value = name;
+        await UpdatePlayerData(PLAYER_NAME, name);
+    }
+
+    private async Task UpdatePlayerData(string key, string value)
+    {
+        try
+        {
+            UpdatePlayerOptions options = new();
+
+            options.Data = new Dictionary<string, PlayerDataObject>()
+            {
+                { key, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, value) }
+            };
+
+            Lobby lobby = await LobbyService.Instance.UpdatePlayerAsync(_currentLobby.Id, _player.Id, options);
+
+            _currentLobby = lobby;
+        }
+        catch (LobbyServiceException e)
+        {
+            print(e);
+        }
     }
 }

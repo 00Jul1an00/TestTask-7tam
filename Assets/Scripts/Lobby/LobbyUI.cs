@@ -14,6 +14,8 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private Transform _playerInLobbyUIContainer;
     [SerializeField] private LobbyPlayerUI _playerInLobbyUIPrefab;
     [SerializeField] private GameObject _inLobbyPanel;
+    [SerializeField] private GameObject _errorPanel;
+    [SerializeField] private TMP_Text _errorText;
 
     private bool _readiness = false;
 
@@ -22,6 +24,7 @@ public class LobbyUI : MonoBehaviour
         LobbyManager.Instance.LobbyUpdated += UpdateLobbyUI;
         LobbyManager.Instance.PlayerJoinedLobby += UpdateLobbyUI;
         LobbyManager.Instance.PlayerLeftLobby += UpdateLobbyUI;
+        LobbyManager.Instance.ErrorTriggered += OnErrorTriggered;
         _joinLobbyButton.onClick.AddListener(JoinLobby);
         _createLobbyButton.onClick.AddListener(CreateLobby);
         _closeLobbyButton.onClick.AddListener(CloseInLobbyPanel);
@@ -35,6 +38,7 @@ public class LobbyUI : MonoBehaviour
         LobbyManager.Instance.LobbyUpdated -= UpdateLobbyUI;
         LobbyManager.Instance.PlayerJoinedLobby -= UpdateLobbyUI;
         LobbyManager.Instance.PlayerLeftLobby -= UpdateLobbyUI;
+        LobbyManager.Instance.ErrorTriggered -= OnErrorTriggered;
         _joinLobbyButton.onClick.RemoveListener(JoinLobby);
         _createLobbyButton.onClick.RemoveListener(CreateLobby);
         _closeLobbyButton.onClick.RemoveListener(CloseInLobbyPanel);
@@ -46,8 +50,11 @@ public class LobbyUI : MonoBehaviour
     {
         await LobbyManager.Instance.JoinLobby(_joinLobbyInputField.text);
 
-        if(LobbyManager.Instance.CurrentLobby != null)
+        if (LobbyManager.Instance.CurrentLobby != null)
             _inLobbyPanel.gameObject.SetActive(true);
+
+        _readyButton.gameObject.SetActive(true);
+        _startGameButton.gameObject.SetActive(false);
     }
 
     private async void CreateLobby()
@@ -57,23 +64,25 @@ public class LobbyUI : MonoBehaviour
         if (LobbyManager.Instance.CurrentLobby != null)
             _inLobbyPanel.gameObject.SetActive(true);
 
-        if (LobbyManager.Instance.IsPlayerHost())
-        {
-            _readyButton.gameObject.SetActive(false);
-            _startGameButton.gameObject.SetActive(true);
-        }
+        _readyButton.gameObject.SetActive(false);
+        _startGameButton.gameObject.SetActive(true);
     }
+
     private void ChangeReadiness()
     {
-        LobbyManager.Instance.SetPlayerReadiness(!_readiness);
         _readiness = !_readiness;
+        LobbyManager.Instance.SetPlayerReadiness(_readiness);
     }
 
     private void StartGame()
     {
-        if (LobbyManager.Instance.IsAllPlayerAreReady())
+        if (LobbyManager.Instance.CurrentLobby.Players.Count >= 2 && LobbyManager.Instance.IsAllPlayerAreReady())
         {
-            print("start");
+            SceneManagerHandler.Instance.LoadGameScene();
+        }
+        else
+        {
+            OnErrorTriggered("In lobby less than 2 player or not all ready");
         }
     }
 
@@ -81,9 +90,6 @@ public class LobbyUI : MonoBehaviour
     {
         foreach (Transform child in _playerInLobbyUIContainer)
         {
-            if (child == _playerInLobbyUIPrefab)
-                continue;
-
             Destroy(child.gameObject);
         }
     }
@@ -96,8 +102,11 @@ public class LobbyUI : MonoBehaviour
         {
             var lobbyPlayersUI = Instantiate(_playerInLobbyUIPrefab, _playerInLobbyUIContainer);
             lobbyPlayersUI.gameObject.SetActive(true);
-            bool isReady = player.Data[LobbyManager.READINESS_INFO].Value == "true";
+            lobbyPlayersUI.Init(player);
+            bool isReady = player.Data[LobbyManager.READINESS_INFO].Value == "True";
+            print("bool " + isReady);
             lobbyPlayersUI.ChangeReadinessStatus(isReady);
+            print(player.Id + LobbyManager.Instance.IsPlayerHost(player) + player.Data[LobbyManager.READINESS_INFO].Value);
         }
     }
 
@@ -105,5 +114,11 @@ public class LobbyUI : MonoBehaviour
     {
         LobbyManager.Instance.LeaveLobby();
         _inLobbyPanel.gameObject.SetActive(false);
+    }
+
+    private void OnErrorTriggered(string message)
+    {
+        _errorPanel.SetActive(true);
+        _errorText.text = message;
     }
 }
