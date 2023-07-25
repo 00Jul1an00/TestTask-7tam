@@ -1,8 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System;
-using Unity.Netcode;
-using System.Collections.Generic;
 
 public class SceneManagerHandler : MonoBehaviour
 {
@@ -20,7 +18,7 @@ public class SceneManagerHandler : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            
+            SceneManager.sceneLoaded += OnSceneLoaded;
         }
         else
         {
@@ -28,30 +26,19 @@ public class SceneManagerHandler : MonoBehaviour
         }
     }
 
-    private void Start()
-    {
-        NetworkManager.Singleton.StartServer();
-        NetworkManager.Singleton.SceneManager.OnLoadEventCompleted += OnSceneLoaded;
-        NetworkManager.Singleton.SceneManager.ActiveSceneSynchronizationEnabled = true;
-    }
-
     public void LoadLobbyScene()
     {
-        
-        if (LobbyManager.Instance.CurrentLobby != null)
-            NetworkManager.Singleton.SceneManager.LoadScene(SceneManager.GetSceneAt(LOBBY_SCENE_INDEX).ToString(), LoadSceneMode.Single);
-        else
-            SceneManager.LoadScene(LOBBY_SCENE_INDEX);
+        SceneManager.LoadScene(LOBBY_SCENE_INDEX);
     }
 
     public void LoadGameScene()
     {
-        NetworkManager.Singleton.SceneManager.LoadScene(SceneManager.GetSceneAt(GAME_SCENE_INDEX).ToString(), LoadSceneMode.Single);
+        SceneManager.LoadScene(GAME_SCENE_INDEX);
     }
 
-    private void OnSceneLoaded(string sceneName, LoadSceneMode mode, List<ulong> completed, List<ulong> timedOut)
+    private void OnSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
     {
-        if(SceneManager.GetSceneAt(GAME_SCENE_INDEX).ToString() == sceneName)
+        if(scene.buildIndex == GAME_SCENE_INDEX)
             GameSceneLoaded?.Invoke();
     }
 }

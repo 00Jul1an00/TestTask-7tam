@@ -1,7 +1,8 @@
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 
-public class EndGameHandler : MonoBehaviour
+public class EndGameHandler : NetworkBehaviour
 {
     [SerializeField] private EndGameUI _endGameUIPanel;
 
@@ -9,34 +10,84 @@ public class EndGameHandler : MonoBehaviour
 
     private void OnEnable()
     {
-        SceneManagerHandler.Instance.GameSceneLoaded += OnGameSceneLoaded;
+        NetworkManager.OnClientConnectedCallback += OnClientConnected;
     }
 
     private void OnDisable()
     {
-        SceneManagerHandler.Instance.GameSceneLoaded -= OnGameSceneLoaded;
+        if (NetworkManager != null)
+            NetworkManager.OnClientConnectedCallback -= OnClientConnected;
     }
 
-    private void OnGameSceneLoaded()
+    private void OnClientConnected(ulong clientId)
     {
-        var players = new Character[LobbyManager.Instance.CurrentLobby.Players.Count];
-        players = FindObjectsOfType<Character>();
-        _players = new List<Character>(players);
-
-        foreach (Character player in _players)
-            player.Die += OnPlayerDie;
+        if(IsHost)
+            PlayersListSetup();
     }
 
     private void OnPlayerDie(Character player)
     {
-        _players.Remove(player);
+        if (!IsHost)
+            return;
 
-        if(_players.Count == 1)
+        RequestDestroyPlayerServerRpc(_players.IndexOf(player));
+
+        if (_players.Count == 1)
         {
-            _endGameUIPanel.gameObject.SetActive(true);
-            _endGameUIPanel.SetWinnerCoinsAmmount(player);
-            _endGameUIPanel.SetWinnerName(player);
-            Destroy(player.gameObject);
+            CharacterNetworkData winner = new() { CoinsCount = _players[0].Coins, Name = _players[0].Name };
+            RequestEndGameUIPanelSetupServerRpc(winner);
+            RequestDestroyPlayerServerRpc(0);
         }
+    }
+
+    private void PlayersListSetup()
+    {
+        _players = new List<Character>();
+        var clients = NetworkManager.Singleton.ConnectedClientsList;
+
+        foreach (var client in clients)
+            _players.Add(client.PlayerObject.GetComponent<Character>());
+
+        foreach (Character player in _players)
+        {
+            player.Die += OnPlayerDie;
+            player.EnablingControl(false);
+
+            if (_players.Count >= 2)
+                player.EnablingControl(true);
+        }
+    }
+
+    private void SetupEndGameUIPanel(CharacterNetworkData winnerData)
+    {
+        _endGameUIPanel.gameObject.SetActive(true);
+        _endGameUIPanel.SetWinnerCoinsAmmount(winnerData.CoinsCount);
+        _endGameUIPanel.SetWinnerName(winnerData.Name);
+    }
+
+    [ServerRpc]
+    private void RequestEndGameUIPanelSetupServerRpc(CharacterNetworkData winnerData)
+    {
+        SetupEndGameUIPanel(winnerData);
+        EndGameUIPanelSetupClientRpc(winnerData);
+    }
+    
+    [ClientRpc]
+    private void EndGameUIPanelSetupClientRpc(CharacterNetworkData winnerData)
+    {
+        SetupEndGameUIPanel(winnerData);
+    }
+
+
+    [ServerRpc]
+    private void RequestDestroyPlayerServerRpc(int index)
+    {
+        if (index >= _players.Count || index < 0)
+            return;
+
+        var player = _players[index];
+        player.GetComponent<NetworkObject>().Despawn();
+        Destroy(player);
+        _players.Remove(player);
     }
 }

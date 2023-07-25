@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using System;
-
 public class ObjectPool<T> where T : MonoBehaviour
 {
     private readonly T _prefab;
@@ -24,7 +23,7 @@ public class ObjectPool<T> where T : MonoBehaviour
 
     private void SpawnObject()
     {
-        T spawned = UnityEngine.Object.Instantiate(_prefab, _prefabContainer);
+        T spawned = UnityEngine.Object.Instantiate(_prefab, _prefabContainer);    
         spawned.gameObject.SetActive(false);
         _spawnList.Add(spawned);
     }

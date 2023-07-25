@@ -8,13 +8,15 @@ using System.Threading.Tasks;
 using System;
 using Unity.Netcode;
 
+#if UNITY_EDITOR
+using ParrelSync;
+#endif
+
 public class LobbyManager : MonoBehaviour
 {
     [SerializeField] private int _maxPlayers;
-    [SerializeField] private float _lobbyUpdatingDelay;
     [SerializeField] private float _lobbyHeartbeatDelay;
 
-    private float _lobbyUpdatingCurrentTime;
     private float _lobbyHeartbeatCurrentTime;
     private Lobby _currentLobby;
     private Player _player;
@@ -23,13 +25,9 @@ public class LobbyManager : MonoBehaviour
     public Lobby CurrentLobby => _currentLobby;
     public static LobbyManager Instance { get; private set; }
 
-    public const string READINESS_INFO = "Readiness";
-    public const string PLAYER_NAME = "PlayerName";
-
-    public event Action PlayerJoinedLobby;
-    public event Action PlayerLeftLobby;
-    public event Action LobbyUpdated;
     public event Action<string> ErrorTriggered;
+
+    public const string RELAY_JOIN_CODE = "JoinCode";
 
     private async void Awake()
     {
@@ -37,7 +35,6 @@ public class LobbyManager : MonoBehaviour
         {
             Instance = this;
             transform.parent = null;
-            _lobbyUpdatingCurrentTime = _lobbyUpdatingDelay;
             _lobbyHeartbeatCurrentTime = _lobbyHeartbeatDelay;
             DontDestroyOnLoad(this);
         }
@@ -47,16 +44,23 @@ public class LobbyManager : MonoBehaviour
         }
 
         await PlayerAunthetication();
-        
+
     }
 
     private async Task PlayerAunthetication()
     {
         try
         {
-            await UnityServices.InitializeAsync();
+            var options = new InitializationOptions();
+
+#if UNITY_EDITOR
+            if (ClonesManager.IsClone())
+                options.SetProfile(ClonesManager.GetArgument());
+            else
+                options.SetProfile("Primary");
+#endif
+            await UnityServices.InitializeAsync(options);
             await AuthenticationService.Instance.SignInAnonymouslyAsync();
-            _player = InitPlayer();
         }
         catch (ServicesInitializationException e)
         {
@@ -67,13 +71,32 @@ public class LobbyManager : MonoBehaviour
     private void Update()
     {
         HandleLobbyHeartbeat();
-        UpdateLobby();
+    }
+
+    public async Task StartLobbyRelay()
+    {
+        if (_currentLobby == null)
+            return;
+
+        try
+        {
+            string joinCode = await RelayHelper.Instance.CreateRelay(_maxPlayers);
+            var data = new Dictionary<string, DataObject>();
+            data.Add(RELAY_JOIN_CODE, new DataObject(DataObject.VisibilityOptions.Member, joinCode));
+            Lobby lobby = await LobbyService.Instance.UpdateLobbyAsync(_currentLobby.Id, new UpdateLobbyOptions() { Data = data });
+            _currentLobby = lobby;
+        }
+        catch(LobbyServiceException e)
+        {
+            print(e);
+        }
     }
 
     public async Task CreateLobby(string lobbyName)
     {
         try
         {
+            _player = InitPlayer();
             var filters = new List<QueryFilter>() { new(QueryFilter.FieldOptions.Name, lobbyName, QueryFilter.OpOptions.EQ) };
             QueryResponse response = await Lobbies.Instance.QueryLobbiesAsync(new QueryLobbiesOptions() { Filters = filters });
 
@@ -82,14 +105,12 @@ public class LobbyManager : MonoBehaviour
                 ErrorTriggered?.Invoke("lobby with name " + lobbyName + " already exist");
                 return;
             }
-            
-            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(lobbyName, _maxPlayers, new() { Player = _player });
-            _currentLobby = lobby;
-            //NetworkManager.Singleton.StartHost();
-            //UpdateLobbyImmediately();
 
+            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(lobbyName, _maxPlayers, new CreateLobbyOptions() { Player = _player} );
+            _currentLobby = lobby;
+            SceneManagerHandler.Instance.LoadGameScene();
         }
-        catch(LobbyServiceException e)
+        catch (LobbyServiceException e)
         {
             print(e);
         }
@@ -103,7 +124,7 @@ public class LobbyManager : MonoBehaviour
             QueryResponse response = await Lobbies.Instance.QueryLobbiesAsync();
             var result = response.Results.Find(lobby => lobby.Name == lobbyName);
 
-            if(result == null || result.AvailableSlots == 0)
+            if (result == null || result.AvailableSlots == 0)
             {
                 ErrorTriggered?.Invoke("lobby with name " + lobbyName + " does not exist or full");
                 return;
@@ -111,69 +132,15 @@ public class LobbyManager : MonoBehaviour
 
             Lobby lobby = await Lobbies.Instance.JoinLobbyByIdAsync(result.Id, new() { Player = _player });
             _currentLobby = lobby;
-            PlayerJoinedLobby?.Invoke();
-            //UpdateLobbyImmediately();
-            //NetworkManager.Singleton.StartClient();
-        }
-        catch(LobbyServiceException e)
-        {
-            print(e);
-        }
-    }
 
-    public async void LeaveLobby()
-    {
-        if (_currentLobby == null)
-            return;
-
-        try
-        {
-            if (_currentLobby.HostId == _player.Id)
+            if(lobby.Data == null)
             {
-                if (_currentLobby.Players.Count - 1 > 0)
-                {
-                    MigrateHost();
-                }
-                else
-                {
-                    await Lobbies.Instance.DeleteLobbyAsync(_currentLobby.Id);
-                    _currentLobby = null;
-                    return;
-                }
+                ErrorTriggered?.Invoke("Lobby not Initialized try later");
+                await LeaveLobby();
+                return;
             }
-
-            await LobbyService.Instance.RemovePlayerAsync(_currentLobby.Id, _player.Id);
-            PlayerLeftLobby?.Invoke();
-            //UpdateLobbyImmediately();
-            SetPlayerReadiness(false);
-            _currentLobby = null;
-        }
-        catch(LobbyServiceException e)
-        {
-            print(e);
-        }
-    }
-
-    private void UpdateLobby()
-    {
-        if (_currentLobby == null)
-            return;
-
-        _lobbyUpdatingCurrentTime -= Time.deltaTime;
-
-        if (_lobbyUpdatingCurrentTime < 0)
-        {
-            _lobbyUpdatingCurrentTime = _lobbyUpdatingDelay;
-            UpdateLobbyImmediately();
-        }
-    }
-
-    private async void UpdateLobbyImmediately()
-    {
-        try
-        {
-            _currentLobby = await LobbyService.Instance.GetLobbyAsync(_currentLobby.Id);
-            LobbyUpdated?.Invoke();
+            
+            SceneManagerHandler.Instance.LoadGameScene();
         }
         catch (LobbyServiceException e)
         {
@@ -181,13 +148,46 @@ public class LobbyManager : MonoBehaviour
         }
     }
 
+    public async Task LeaveLobby()
+    {
+        if (_currentLobby == null)
+            return;
+
+        try
+        {
+            QueryResponse response = await Lobbies.Instance.QueryLobbiesAsync();
+            var result = response.Results.Find(lobby => lobby.Id == _currentLobby.Id);
+
+            if (result == null)
+            {
+                _currentLobby = null;
+                return;
+            }
+
+            if (_currentLobby.HostId == _player.Id)
+            {
+
+                await Lobbies.Instance.DeleteLobbyAsync(_currentLobby.Id);
+                _currentLobby = null;
+                return;
+            }
+
+            await LobbyService.Instance.RemovePlayerAsync(_currentLobby.Id, _player.Id);
+        }
+        catch (LobbyServiceException e)
+        {
+            print(e);
+        }
+
+    }
+
     private async void HandleLobbyHeartbeat()
     {
-        if(IsPlayerHost())
+        if (IsPlayerHost())
         {
             _lobbyHeartbeatCurrentTime -= Time.deltaTime;
 
-            if(_lobbyHeartbeatCurrentTime < 0)
+            if (_lobbyHeartbeatCurrentTime < 0)
             {
                 _lobbyHeartbeatCurrentTime = _lobbyHeartbeatDelay;
                 await LobbyService.Instance.SendHeartbeatPingAsync(_currentLobby.Id);
@@ -195,87 +195,13 @@ public class LobbyManager : MonoBehaviour
         }
     }
 
-    private async void MigrateHost()
-    {
-        try
-        {
-            _currentLobby = await Lobbies.Instance.UpdateLobbyAsync(_currentLobby.Id, new UpdateLobbyOptions() { HostId = _currentLobby.Players[1].Id });
-        }
-        catch(LobbyServiceException e)
-        {
-            print(e);
-        }
-    }
-
-    public async void SetPlayerReadiness(bool isReady)
-    {
-        if (_currentLobby == null)
-            return;
-
-        if (IsPlayerHost())
-            return;
-
-        await UpdatePlayerData(READINESS_INFO, isReady.ToString());
-    }
-
     private Player InitPlayer()
     {
-        return new Player(AuthenticationService.Instance.PlayerId, null, new Dictionary<string, PlayerDataObject> {
-            { READINESS_INFO, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, "False") },
-            { PLAYER_NAME, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, string.Empty) } 
-        });
+        return new Player(AuthenticationService.Instance.PlayerId, null, new Dictionary<string, PlayerDataObject>());
     }
 
     public bool IsPlayerHost()
     {
         return _currentLobby != null && _player.Id == _currentLobby.HostId;
-    }
-    
-    public bool IsPlayerHost(Player player)
-    {
-        return _currentLobby != null && player.Id == _currentLobby.HostId;
-    }
-
-    public bool IsAllPlayerAreReady()
-    {
-        if (_currentLobby == null)
-            return false;
-
-        foreach(var player in _currentLobby.Players)
-        {
-            if (player.Id == _currentLobby.HostId)
-                continue;
-
-            if (player.Data[READINESS_INFO].Value == "False")
-                return false;
-        }
-
-        return true;
-    }
-
-    public async void ChangePlayerName(string name)
-    {
-        await UpdatePlayerData(PLAYER_NAME, name);
-    }
-
-    private async Task UpdatePlayerData(string key, string value)
-    {
-        try
-        {
-            UpdatePlayerOptions options = new();
-
-            options.Data = new Dictionary<string, PlayerDataObject>()
-            {
-                { key, new PlayerDataObject(PlayerDataObject.VisibilityOptions.Public, value) }
-            };
-
-            Lobby lobby = await LobbyService.Instance.UpdatePlayerAsync(_currentLobby.Id, _player.Id, options);
-
-            _currentLobby = lobby;
-        }
-        catch (LobbyServiceException e)
-        {
-            print(e);
-        }
     }
 }

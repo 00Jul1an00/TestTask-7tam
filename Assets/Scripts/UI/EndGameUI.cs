@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using Unity.Netcode;
 
-public class EndGameUI : MonoBehaviour
+public class EndGameUI : NetworkBehaviour
 {
     [SerializeField] private Button _exitButton;
     [SerializeField] private TMP_Text _winnerNameText;
@@ -18,18 +19,32 @@ public class EndGameUI : MonoBehaviour
         _exitButton.onClick.RemoveListener(ExitFromGameScene);
     }
 
-    public void SetWinnerName(Character character)
+    public void SetWinnerName(string name)
     {
-        _winnerNameText.text = character.Name;
+        _winnerNameText.text = "WINNER: " + name;
     }
 
-    public void SetWinnerCoinsAmmount(Character character)
+    public void SetWinnerCoinsAmmount(int coins)
     {
-        _winnerCoinsAmmountText.text = character.Coins.ToString();
+        _winnerCoinsAmmountText.text = coins.ToString();
     }
 
-    private void ExitFromGameScene()
+    private async void ExitFromGameScene()
     {
+        if(IsHost)
+        {
+            foreach(var clientID in NetworkManager.Singleton.ConnectedClientsIds)
+            {
+                if (clientID == OwnerClientId)
+                    continue;
+
+                NetworkManager.Singleton.DisconnectClient(clientID);
+            }
+        }
+        
+        NetworkManager.Singleton.Shutdown();
+        await LobbyManager.Instance.LeaveLobby();
+        
         SceneManagerHandler.Instance.LoadLobbyScene();
     }
 }

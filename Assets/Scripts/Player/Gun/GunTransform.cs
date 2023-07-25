@@ -5,8 +5,7 @@ using Unity.Netcode;
 public class GunTransform : NetworkBehaviour
 {
     [SerializeField] private Joystick _joystick;
-
-    private SpriteRenderer _gunSprite;
+    [SerializeField] private SpriteRenderer _gunSprite;
 
     private const int VECTOR_CLAMPER = 100000;
 
@@ -30,11 +29,30 @@ public class GunTransform : NetworkBehaviour
             transform.localPosition = Vector2.ClampMagnitude(newPosition, 2);
             float rotationZ = Mathf.Atan2(_joystick.Position.y, _joystick.Position.x) * Mathf.Rad2Deg;
             transform.eulerAngles = new Vector3(0, 0, rotationZ);
-            
-            if (rotationZ > 90 || rotationZ < -90)
-                _gunSprite.flipY = true;
-            else
-                _gunSprite.flipY = false;
+            RequestGunFlipYServerRpc(rotationZ);
+            SetGunFlipY(rotationZ);
         }
+    }
+
+
+    [ServerRpc]
+    private void RequestGunFlipYServerRpc(float rotationZ)
+    {
+        GunFlipYClientRpc(rotationZ);
+    }
+
+    [ClientRpc]
+    private void GunFlipYClientRpc(float rotationZ)
+    {
+        if (!IsOwner)
+            SetGunFlipY(rotationZ);
+    }
+
+    private void SetGunFlipY(float rotationZ)
+    {
+        if (rotationZ > 90 || rotationZ < -90)
+            _gunSprite.flipY = true;
+        else
+            _gunSprite.flipY = false;
     }
 }

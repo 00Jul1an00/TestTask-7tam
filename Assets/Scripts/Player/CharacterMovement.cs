@@ -3,6 +3,7 @@ using System;
 using Unity.Netcode;
 
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Character))]
 public class CharacterMovement : NetworkBehaviour
 {
     [SerializeField] private Joystick _joystick;

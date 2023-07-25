@@ -1,7 +1,7 @@
 using UnityEngine;
 using Unity.Netcode;
 
-public class StartGame : MonoBehaviour
+public class StartGame : NetworkBehaviour
 {
     private void OnEnable()
     {
@@ -13,11 +13,18 @@ public class StartGame : MonoBehaviour
         SceneManagerHandler.Instance.GameSceneLoaded -= OnSceneLoaded;
     }
 
-    private void OnSceneLoaded()
+    private async void OnSceneLoaded()
     {
-        if(LobbyManager.Instance.IsPlayerHost())
+        if (LobbyManager.Instance.IsPlayerHost())
+        {
+            await LobbyManager.Instance.StartLobbyRelay();
             NetworkManager.Singleton.StartHost();
+        }
         else
+        {
+            string joinCode = LobbyManager.Instance.CurrentLobby.Data[LobbyManager.RELAY_JOIN_CODE].Value;
+            await RelayHelper.Instance.JoinRelay(joinCode);
             NetworkManager.Singleton.StartClient();
+        }    
     }
 }

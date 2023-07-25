@@ -5,6 +5,8 @@ public class Character : MonoBehaviour
 {
     [SerializeField] private int _health;
     [SerializeField] private SpriteRenderer _playerSprite;
+    [SerializeField] private CharacterShooting _shooting;
+    [SerializeField] private CharacterMovement _movement;
 
     private string _name;
     private int _coins;
@@ -17,6 +19,12 @@ public class Character : MonoBehaviour
     public event Action HealthChanged;
     public event Action<Character> Die;
 
+    public void EnablingControl(bool enable)
+    {
+        _shooting.enabled = enable;
+        _movement.enabled = enable;
+    }
+
     public void TakeDamage(int damage)
     {
         if (damage > 0)
@@ -28,9 +36,7 @@ public class Character : MonoBehaviour
         if (_health <= 0)
         {
             Die?.Invoke(this);
-            Destroy(gameObject);
         }
-
     }
 
     public void AddCoin()

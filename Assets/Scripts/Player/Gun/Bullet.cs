@@ -1,22 +1,36 @@
 using UnityEngine;
 using System.Collections;
+using Unity.Netcode;
 
-public class Bullet : MonoBehaviour
+public class Bullet : NetworkBehaviour
 {
     [Min(0)][SerializeField] private int _damage;
     [Min(0)][SerializeField] private float _speed;
     [Min(1)][SerializeField] private float _lifetime;
 
+    private Character _shooter;
+
     private void OnEnable() => StartCoroutine(BulletResetAfterLifetimeEnd());
    
+    public void SetShooter(Character shooter)
+    {
+        if (shooter == null)
+            return;
+
+        _shooter = shooter;
+    }
+
     private void Update() => transform.position += transform.up * _speed * Time.deltaTime;
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
         if (collision.TryGetComponent(out Character character))
         {
-            character.TakeDamage(_damage);
-            ResetBullet();
+            if (character != null && _shooter != character)
+            {
+                character.TakeDamage(_damage);   
+                ResetBullet();
+            }
         }
     }
 

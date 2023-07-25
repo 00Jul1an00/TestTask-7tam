@@ -3,21 +3,33 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 
+[RequireComponent(typeof(Character))]
 public class CharacterShooting : NetworkBehaviour
 {
     [SerializeField] private Gun _gun;
     [SerializeField] private Transform _firePoint;
 
-    private void Update()
+    private ShootButton _shootButton;
+
+    private void Start()
+    {
+        _shootButton = FindObjectOfType<ShootButton>();
+        _shootButton.ShootingButton.onClick.AddListener(Shoot);
+    }
+
+    public override void OnDestroy()
+    {
+        _shootButton.ShootingButton.onClick.RemoveListener(Shoot);
+        base.OnDestroy();
+    }
+
+    private void Shoot()
     {
         if (!IsOwner)
             return;
 
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            RequestFireServerRpc(_firePoint.position);
-            _gun.Fire(_firePoint.position);
-        }
+        RequestFireServerRpc(_firePoint.position);
+        _gun.Fire(_firePoint.position);
     }
 
     [ServerRpc]
@@ -29,7 +41,7 @@ public class CharacterShooting : NetworkBehaviour
     [ClientRpc]
     private void FireClientRpc(Vector3 direction)
     {
-        if(!IsOwner)
+        if (!IsOwner)
             _gun.Fire(direction);
     }
 }

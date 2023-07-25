@@ -60,7 +60,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -327,7 +327,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -823,6 +823,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc32fa34580cda040878fb22d8207b6a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _bulletPrefab: {fileID: 4978463290619951792, guid: 6db30d24d65c6f742a154e4d318b9ef8, type: 3}
+  _shooter: {fileID: 2186922386823056444}
 --- !u!212 &2186922386487064592
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -888,6 +890,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _joystick: {fileID: 0}
+  _gunSprite: {fileID: 2186922386487064592}
 --- !u!114 &5869524813981420230
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -903,8 +906,8 @@ MonoBehaviour:
   SyncPositionX: 1
   SyncPositionY: 1
   SyncPositionZ: 0
-  SyncRotAngleX: 0
-  SyncRotAngleY: 0
+  SyncRotAngleX: 1
+  SyncRotAngleY: 1
   SyncRotAngleZ: 1
   SyncScaleX: 0
   SyncScaleY: 0
@@ -1012,6 +1015,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _health: 100
   _playerSprite: {fileID: 2186922385600277158}
+  _shooting: {fileID: 1600099807914281519}
+  _movement: {fileID: 2186922386823056443}
 --- !u!114 &2186922386823056443
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1053,6 +1058,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _spawnPoints: {fileID: 1773875551469226640, guid: c64deead3c72d7f4cb0c2e57aa2d94a6, type: 3}
+  _character: {fileID: 2186922386823056444}
 --- !u!114 &1504489119
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1069,7 +1075,7 @@ MonoBehaviour:
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
   ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
+  SceneMigrationSynchronization: 0
   DontDestroyWithOwner: 0
   AutoObjectParentSync: 1
 --- !u!114 &4352628302931508418
@@ -1088,7 +1094,7 @@ MonoBehaviour:
   SyncPositionY: 1
   SyncPositionZ: 0
   SyncRotAngleX: 0
-  SyncRotAngleY: 0
+  SyncRotAngleY: 1
   SyncRotAngleZ: 0
   SyncScaleX: 0
   SyncScaleY: 0

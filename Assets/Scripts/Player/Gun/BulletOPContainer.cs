@@ -4,15 +4,15 @@ using UnityEngine;
 
 public class BulletOPContainer : MonoBehaviour
 {
-    [SerializeField] private Bullet _bulletPrefab;
-
+    private Bullet _bulletPrefab;
     private ObjectPool<Bullet> _bulletPool;
-    private const int BULLET_MAX_COUNT_IN_POOL = 1000;
+    private const int BULLET_MAX_COUNT_IN_POOL = 200;
 
     public ObjectPool<Bullet> Pool => _bulletPool;
 
-    private void Start()
+    public void Init(Bullet bulletPrefab)
     {
+        _bulletPrefab = bulletPrefab;
         _bulletPool = new(_bulletPrefab, BULLET_MAX_COUNT_IN_POOL, transform);
     }
 }

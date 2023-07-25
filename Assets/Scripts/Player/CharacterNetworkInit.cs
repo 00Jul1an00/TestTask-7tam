@@ -2,35 +2,29 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 
+[RequireComponent(typeof(Character))]
 public class CharacterNetworkInit : NetworkBehaviour
 {
     [SerializeField] private Transform _spawnPoints;
+    [SerializeField] private Character _character;
     private List<Transform> _spawnPointsList = new();
-    private Character _character;
 
     public override void OnNetworkSpawn()
     {
-        if (!IsOwner)
-            return;
-
         foreach (Transform child in _spawnPoints)
             _spawnPointsList.Add(child);
 
-        PlayerInit();
+        int index = (int)OwnerClientId;
+
+        if (index >= _spawnPointsList.Count) 
+            index = _spawnPointsList.Count;
+
+        transform.position = _spawnPointsList[index].position;
+        PlayerChangesSetup(index);
     }
 
-    private void PlayerInit()
+    private void PlayerChangesSetup(int posNumber)
     {
-        var player = LobbyManager.Instance.Player;
-        var playersInLobby = LobbyManager.Instance.CurrentLobby.Players;
-        int posNumber = 0;
-
-        for(int i = 0; i < playersInLobby.Count; i++)
-            if(player.Id == playersInLobby[i].Id)
-                posNumber = i;
-
-        transform.position = _spawnPointsList[posNumber].position;
-        _character = GetComponent<Character>();
         _character.ChangeName(((PlayerName)posNumber).ToString());
         _character.ChangeColor(GetColor(((PlayerName)posNumber).ToString()));
     }
@@ -43,9 +37,9 @@ public class CharacterNetworkInit : NetworkBehaviour
                 {
                     return Color.blue;
                 }
-            case "Pink":
+            case "Black":
                 {
-                    return new Color(248, 24, 148);
+                    return Color.black;
                 }
             case "Red":
                 {
